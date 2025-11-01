@@ -9,7 +9,7 @@ import sys
 from typing import List
 
 from .logging_setup import configure_logging
-from .ndjson_output import format_ndjson_line
+from .ndjson_output import modelscore_to_ndjson_line
 from .scorer import process_url_list
 
 # Configure logging based on environment variables
@@ -65,8 +65,7 @@ def main(argv: List[str] | None = None) -> int:
         
         # Output NDJSON for each model
         for model_score in model_scores:
-            output_dict = model_score.to_ndjson_dict()
-            print(format_ndjson_line(output_dict))
+            print(modelscore_to_ndjson_line(model_score))
         
         return 0
         
