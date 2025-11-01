@@ -22,13 +22,13 @@ class SizeScoreMetric:
     
     def compute(self, repo_info: Dict[str, Any]) -> Tuple[Dict[str, float], int]:
         """
-        Compute size score for each hardware target with timing.
+        Compute size score for each hardware target.
         
         Args:
             repo_info: Context containing 'weights_total_bytes' key
             
         Returns:
-            Tuple of (dict mapping hardware to scores 0.0-1.0, latency_ms)
+            Tuple of (score_dict, latency_ms) where score_dict maps hardware to scores
         """
         t0 = time.perf_counter()
         
@@ -37,7 +37,7 @@ class SizeScoreMetric:
             
             if total is None:
                 # No size information available - assume works on larger hardware
-                scores = {
+                score_dict = {
                     "raspberry_pi": 0.0,
                     "jetson_nano": 0.0,
                     "desktop_pc": 1.0,
@@ -52,25 +52,25 @@ class SizeScoreMetric:
                     "aws_server": 100 * 1024 * 1024 * 1024,  # 100 GB
                 }
                 
-                scores = {}
+                score_dict = {}
                 for k, thresh in thresholds.items():
                     if total <= thresh:
-                        scores[k] = 1.0
+                        score_dict[k] = 1.0
                     else:
                         # Gradual degradation up to 10x the threshold
-                        score = 1.0 - (total - thresh) / (thresh * 10)
-                        scores[k] = max(0.0, min(1.0, score))
+                        val = 1.0 - (total - thresh) / (thresh * 10)
+                        score_dict[k] = max(0.0, min(1.0, val))
             
         except Exception:
-            scores = {
+            # On error, return safe defaults
+            score_dict = {
                 "raspberry_pi": 0.0,
                 "jetson_nano": 0.0,
-                "desktop_pc": 0.0,
-                "aws_server": 0.0,
+                "desktop_pc": 1.0,
+                "aws_server": 1.0,
             }
         
         t1 = time.perf_counter()
         latency_ms = int(round((t1 - t0) * 1000))
         
-        return scores, latency_ms
-
+        return score_dict, latency_ms

@@ -5,78 +5,63 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import Any, Dict, Literal, TypedDict
+from typing import Any, Dict, Literal
 
-# Resource categories
-ResourceCategory = Literal["MODEL", "DATASET", "CODE", "UNKNOWN"]
+# Resource category type
+ResourceCategory = Literal["MODEL", "DATASET", "CODE"]
 
 
 @dataclass
 class ParsedURL:
     """Parsed URL with category detection."""
     raw: str
-    category: ResourceCategory
+    category: ResourceCategory | Literal["UNKNOWN"]
     name: str
-
-
-class ScoreTimings(TypedDict, total=False):
-    """TypedDict for all metric scores and their latencies."""
-    # Scores (0-1)
-    ramp_up_time: float
-    bus_factor: float
-    performance_claims: float
-    license: float
-    dataset_and_code_score: float
-    dataset_quality: float
-    code_quality: float
-    net_score: float
-    
-    # Latencies (milliseconds)
-    ramp_up_time_latency: int
-    bus_factor_latency: int
-    performance_claims_latency: int
-    license_latency: int
-    size_score_latency: int
-    dataset_and_code_score_latency: int
-    dataset_quality_latency: int
-    code_quality_latency: int
-    net_score_latency: int
-    
-    # Size score is special - dict of platform scores
-    size_score: Dict[str, float]
 
 
 @dataclass
 class ModelScore:
     """
     Complete scoring result for a model.
-    Matches Table 1 field names and order from the spec.
+    
+    Contains all metric scores, latencies, and net score.
+    Provides to_ndjson_dict() for exact output format matching spec Table 1.
     """
     name: str
     category: ResourceCategory
+    
+    # Individual metric scores (0.0 - 1.0)
+    ramp_up_time: float
+    bus_factor: float
+    performance_claims: float
+    license: float
+    dataset_and_code_score: float
+    dataset_quality: float
+    code_quality: float
+    
+    # Size score is special - dict with hardware targets
+    size_score: Dict[str, float]
+    
+    # Latencies in milliseconds
+    ramp_up_time_latency: int
+    bus_factor_latency: int
+    performance_claims_latency: int
+    license_latency: int
+    size_score_latency: int
+    dataset_and_code_score_latency: int
+    dataset_quality_latency: int
+    code_quality_latency: int
+    
+    # Net score and its latency
     net_score: float
     net_score_latency: int
-    ramp_up_time: float
-    ramp_up_time_latency: int
-    bus_factor: float
-    bus_factor_latency: int
-    performance_claims: float
-    performance_claims_latency: int
-    license: float
-    license_latency: int
-    size_score: Dict[str, float]
-    size_score_latency: int
-    dataset_and_code_score: float
-    dataset_and_code_score_latency: int
-    dataset_quality: float
-    dataset_quality_latency: int
-    code_quality: float
-    code_quality_latency: int
-
+    
     def to_ndjson_dict(self) -> OrderedDict[str, Any]:
         """
-        Convert to OrderedDict with EXACT field names and order from Table 1.
-        All float scores are rounded to 3 decimal places.
+        Convert to OrderedDict with exact field names and order from spec Table 1.
+        
+        Returns:
+            OrderedDict with fields in correct order for NDJSON output
         """
         return OrderedDict([
             ("name", self.name),
@@ -100,4 +85,3 @@ class ModelScore:
             ("code_quality", round(self.code_quality, 3)),
             ("code_quality_latency", self.code_quality_latency),
         ])
-

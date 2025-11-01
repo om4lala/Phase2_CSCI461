@@ -21,13 +21,13 @@ class BusFactorMetric:
     
     def compute(self, repo_info: Dict[str, Any]) -> Tuple[float, int]:
         """
-        Compute bus factor score with timing.
+        Compute bus factor score.
         
         Args:
             repo_info: Context containing 'git_contributors' key
             
         Returns:
-            Tuple of (score from 0.1 to 1.0, latency_ms)
+            Tuple of (score, latency_ms) where score is 0.1 to 1.0
         """
         t0 = time.perf_counter()
         
@@ -39,7 +39,8 @@ class BusFactorMetric:
             else:
                 score = min(1.0, contributors / 5.0)
             
-            score = max(0.0, min(1.0, score))  # Clamp to [0, 1]
+            # Clamp to [0, 1]
+            score = max(0.0, min(1.0, score))
             
         except Exception:
             score = 0.0
@@ -48,4 +49,3 @@ class BusFactorMetric:
         latency_ms = int(round((t1 - t0) * 1000))
         
         return score, latency_ms
-

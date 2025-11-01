@@ -21,13 +21,13 @@ class PerformanceClaimsMetric:
     
     def compute(self, repo_info: Dict[str, Any]) -> Tuple[float, int]:
         """
-        Compute performance claims score with timing.
+        Compute performance claims score.
         
         Args:
             repo_info: Context containing 'hf_readme' key
             
         Returns:
-            Tuple of (1.0 if benchmarks present, 0.0 otherwise, latency_ms)
+            Tuple of (score, latency_ms) where score is 0.0 or 1.0
         """
         t0 = time.perf_counter()
         
@@ -50,4 +50,3 @@ class PerformanceClaimsMetric:
         latency_ms = int(round((t1 - t0) * 1000))
         
         return score, latency_ms
-

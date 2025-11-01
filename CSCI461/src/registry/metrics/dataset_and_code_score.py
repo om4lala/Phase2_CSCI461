@@ -21,13 +21,13 @@ class DatasetAndCodeScoreMetric:
     
     def compute(self, repo_info: Dict[str, Any]) -> Tuple[float, int]:
         """
-        Compute dataset and code score with timing.
+        Compute dataset and code score.
         
         Args:
             repo_info: Context containing 'dataset_link' and 'example_code_present' keys
             
         Returns:
-            Tuple of (score from 0.0 to 1.0, latency_ms)
+            Tuple of (score, latency_ms) where score is 0.0, 0.5, or 1.0
         """
         t0 = time.perf_counter()
         
@@ -49,4 +49,3 @@ class DatasetAndCodeScoreMetric:
         latency_ms = int(round((t1 - t0) * 1000))
         
         return score, latency_ms
-

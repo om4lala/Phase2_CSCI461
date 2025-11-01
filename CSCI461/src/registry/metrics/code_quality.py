@@ -21,13 +21,13 @@ class CodeQualityMetric:
     
     def compute(self, repo_info: Dict[str, Any]) -> Tuple[float, int]:
         """
-        Compute code quality score with timing.
+        Compute code quality score.
         
         Args:
             repo_info: Context containing 'has_tests', 'has_ci', 'lint_ok', 'lint_warn' keys
             
         Returns:
-            Tuple of (score from 0.0 to 1.0, latency_ms)
+            Tuple of (score, latency_ms) where score is 0.0 to 1.0
         """
         t0 = time.perf_counter()
         
@@ -42,7 +42,9 @@ class CodeQualityMetric:
             
             # Weighted combination
             score = 0.4 * float(has_tests) + 0.3 * float(has_ci) + 0.3 * lint_score
-            score = max(0.0, min(1.0, score))  # Clamp to [0, 1]
+            
+            # Clamp to [0, 1]
+            score = max(0.0, min(1.0, score))
             
         except Exception:
             score = 0.0
@@ -51,4 +53,3 @@ class CodeQualityMetric:
         latency_ms = int(round((t1 - t0) * 1000))
         
         return score, latency_ms
-

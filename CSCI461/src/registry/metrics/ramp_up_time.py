@@ -20,13 +20,13 @@ class RampUpTimeMetric:
     
     def compute(self, repo_info: Dict[str, Any]) -> Tuple[float, int]:
         """
-        Compute ramp-up time score with timing.
+        Compute ramp-up time score.
         
         Args:
             repo_info: Context containing 'hf_readme' key
             
         Returns:
-            Tuple of (score from 0.0 to 1.0, latency_ms)
+            Tuple of (score, latency_ms) where score is 0.0 to 1.0
         """
         t0 = time.perf_counter()
         
@@ -40,7 +40,9 @@ class RampUpTimeMetric:
             length_score = min(1.0, len(readme.split()) / 300.0)
             
             score = 0.5 * length_score + 0.5 * examples
-            score = max(0.0, min(1.0, score))  # Clamp to [0, 1]
+            
+            # Clamp to [0, 1]
+            score = max(0.0, min(1.0, score))
             
         except Exception:
             score = 0.0
@@ -49,4 +51,3 @@ class RampUpTimeMetric:
         latency_ms = int(round((t1 - t0) * 1000))
         
         return score, latency_ms
-
