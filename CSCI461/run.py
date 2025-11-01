@@ -62,6 +62,22 @@ def run_test() -> int:
     """
     LOG.info("Starting test run with coverage")
     try:
+        # First, collect test count
+        collect_result = subprocess.run(
+            [sys.executable, "-m", "pytest", "--collect-only", "-q"],
+            capture_output=True,
+            text=True
+        )
+        
+        total = 0
+        for line in collect_result.stdout.split('\n'):
+            # Look for line like "3 tests collected" or similar
+            if 'test' in line.lower() and ('collected' in line or 'selected' in line):
+                parts = line.split()
+                if parts and parts[0].isdigit():
+                    total = int(parts[0])
+                    break
+        
         # Run pytest with coverage
         result = subprocess.run(
             [
@@ -70,33 +86,31 @@ def run_test() -> int:
                 "--disable-warnings",
                 "-q",
                 "--cov=src",
-                "--cov-report=term",
-                "-v"
+                "--cov-report=term-missing",
             ],
             capture_output=True,
             text=True
         )
         
-        # Parse output to extract test counts
+        # Parse output to extract results
         output_lines = result.stdout + result.stderr
         
-        # Extract test results
         passed = 0
-        total = 0
+        failed = 0
         coverage_percent = 0
         
-        # Look for pytest summary line (e.g., "5 passed in 0.23s")
+        # Look for pytest summary line (e.g., "5 passed in 0.23s" or "3 passed, 1 failed")
         for line in output_lines.split('\n'):
-            if 'passed' in line.lower():
-                # Try to extract numbers
+            # Parse test results
+            if 'passed' in line.lower() and ('failed' in line.lower() or 'error' in line.lower() or 'in' in line):
                 parts = line.split()
                 for i, part in enumerate(parts):
-                    if 'passed' in part.lower() and i > 0:
-                        try:
-                            passed = int(parts[i-1])
-                            total = passed  # Assume all tests passed
-                        except (ValueError, IndexError):
-                            pass
+                    if part.isdigit():
+                        next_word = parts[i+1].lower() if i+1 < len(parts) else ""
+                        if 'passed' in next_word:
+                            passed = int(part)
+                        elif 'failed' in next_word or 'error' in next_word:
+                            failed = int(part)
             
             # Look for coverage line (e.g., "TOTAL ... 85%")
             if 'TOTAL' in line and '%' in line:
@@ -108,24 +122,22 @@ def run_test() -> int:
                         except ValueError:
                             pass
         
-        # If we didn't find totals, use pytest collection
-        if total == 0:
-            collect_result = subprocess.run(
-                [sys.executable, "-m", "pytest", "--collect-only", "-q"],
-                capture_output=True,
-                text=True
-            )
-            for line in collect_result.stdout.split('\n'):
-                if 'test' in line.lower():
-                    total += 1
-        
-        # Determine passed based on return code
-        if result.returncode == 0:
+        # If we didn't parse passed/failed correctly, use return code
+        if result.returncode == 0 and passed == 0:
             passed = total
-        else:
-            # Try to count from output
-            if passed == 0:
-                passed = 0  # Tests failed
+            failed = 0
+        elif passed == 0 and failed == 0:
+            # Parse failed - try to count from verbose output
+            if result.returncode != 0:
+                failed = total
+                passed = 0
+            else:
+                passed = total
+                failed = 0
+        
+        # Calculate actual total if we have partial info
+        if passed > 0 or failed > 0:
+            total = max(total, passed + failed)
         
         # Print formatted output
         print(f"{passed}/{total} test cases passed. {coverage_percent}% line coverage achieved.")
