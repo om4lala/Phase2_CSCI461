@@ -17,7 +17,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ secrets.MY_AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -28,7 +28,7 @@ jobs:
         run: |
           IMAGE_NAME=trustworthy-registry
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-          ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${IMAGE_NAME}:latest"
+          ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ secrets.MY_AWS_REGION }}.amazonaws.com/${IMAGE_NAME}:latest"
 
           echo "Building Docker image..."
           docker build -t $IMAGE_NAME .
@@ -51,11 +51,11 @@ jobs:
             set -e
             IMAGE_NAME=trustworthy-registry
             ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-            ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${IMAGE_NAME}:latest"
+            ECR_URL="${ACCOUNT_ID}.dkr.ecr.${{ secrets.MY_AWS_REGION }}.amazonaws.com/${IMAGE_NAME}:latest"
 
             echo "Logging into ECR from EC2..."
-            aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
-              | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com"
+            aws ecr get-login-password --region ${{ secrets.MY_AWS_REGION }} \
+              | docker login --username AWS --password-stdin "${ACCOUNT_ID}.dkr.ecr.${{ secrets.MY_AWS_REGION }}.amazonaws.com"
 
             echo "Pulling latest image on EC2..."
             docker pull $ECR_URL
