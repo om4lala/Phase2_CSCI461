@@ -10,6 +10,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from mangum import Mangum
 import os
 
 # Create FastAPI app instance
@@ -157,4 +158,13 @@ async def register_model(request: RegisterRequest) -> dict[str, str]:
         "repo_url": request.repo_url,
         "owner": request.owner
     }
+
+
+# Lambda handler for AWS Lambda
+handler = Mangum(app)
+
+
+def lambda_handler(event, context):
+    """AWS Lambda handler function."""
+    return handler(event, context)
 

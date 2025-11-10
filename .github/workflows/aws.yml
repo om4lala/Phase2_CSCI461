@@ -23,6 +23,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install .
 
       - name: Run tests
         working-directory: CSCI461
@@ -30,6 +31,7 @@ jobs:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           MODELS_TABLE: models
         run: |
+          export PYTHONPATH=$PWD/src
           echo "Running pytest with AWS_REGION=$AWS_REGION and MODELS_TABLE=$MODELS_TABLE"
           pytest -v --tb=short
 

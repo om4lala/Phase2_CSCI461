@@ -1,0 +1,27 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Trustworthy Model Registry API
+
+Resources:
+  ModelRegistryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: model-registry
+      Runtime: python3.11
+      Timeout: 30
+      Handler: src.api.main.lambda_handler
+      CodeUri: .
+      Policies:
+        - AWSLambdaBasicExecutionRole
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+
+Outputs:
+  ApiUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+
