@@ -1,72 +1,5 @@
-# # This CD workflow runs on every push to main. It deploys the latest code to our EC2 instance on AWS by copying the repo over SSH and running docker compose up -d --build on the instance. This satisfies the 'automated deployment to AWS after merge' requirement.
-# name: CD - Deploy to AWS
-
-# on:
-#   push:
-#     branches: ["main"]
-
-# jobs:
-#   build-and-deploy:
-#     runs-on: ubuntu-latest-----BEGIN OPENSSH PRIVATE KEY-----
-
-
-#     steps:
-#       - name: Checkout repo
-#         uses: actions/checkout@v4
-
-#       - name: Configure AWS credentials
-#         uses: aws-actions/configure-aws-credentials@v4
-#         with:
-#           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#           aws-region: ${{ secrets.AWS_REGION }}
-
-#       - name: Create app directory on EC2
-#         uses: appleboy/ssh-action@v1.2.0
-#         with:
-#           host: ${{ secrets.EC2_HOST }}
-#           username: ${{ secrets.EC2_USER }}
-#           key: ${{ secrets.EC2_SSH_KEY }}
-#           script: |
-#             mkdir -p /home/${{ secrets.EC2_USER }}/app
-
-#       - name: Copy code to EC2
-#         uses: appleboy/scp-action@v0.1.7
-#         with:
-#           host: ${{ secrets.EC2_HOST }}
-#           username: ${{ secrets.EC2_USER }}
-#           key: ${{ secrets.EC2_SSH_KEY }}
-#           source: "."
-#           target: "/home/${{ secrets.EC2_USER }}/app"
-
-#       - name: Prepare SSH key and known_hosts
-#         run: |
-#           if [ -z "${{ secrets.EC2_SSH_KEY }}" ]; then
-#             echo "EC2_SSH_KEY secret is not set. Failing."
-#             exit 1
-#           fi
-#           mkdir -p ~/.ssh
-#           echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
-#           chmod 600 ~/.ssh/id_rsa# add EC2 host to known_hosts to avoid interactive prompt
-#           ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-
-#       - name: Deploy on EC2
-#         uses: appleboy/ssh-action@v1.2.0
-#         with:
-#           host: ${{ secrets.EC2_HOST }}
-#           username: ${{ secrets.EC2_USER }}
-#           key: ${{ secrets.EC2_SSH_KEY }}
-#           script: |
-#             set -e
-#             cd /home/${{ secrets.EC2_USER }}/app
-#             echo "Building and starting containers..."
-#             docker compose up -d --build
-#             echo "Verifying container is running..."
-#             docker ps | grep trustworthy-registry || (echo "Error: Container not running!" && exit 1)
-#             echo "Deployment complete."
-
-
-name: CD - Deploy to AWS
+# This CD workflow runs on every push to main. It deploys the application to AWS Lambda using SAM.
+name: CD - Deploy to AWS Lambda
 
 on:
   push:
@@ -80,6 +13,24 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          MODELS_TABLE: models
+        run: |
+          echo "Running pytest with AWS_REGION=$AWS_REGION and MODELS_TABLE=$MODELS_TABLE"
+          pytest -v --tb=short
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -87,116 +38,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # SSH Key Format Requirements:
-      # ⚠️ IMPORTANT: EC2_SSH_KEY secret must contain the PRIVATE key (not the public key!)
-      # The PRIVATE key must include:
-      # -----BEGIN OPENSSH PRIVATE KEY-----
-      # (all the base64 encoded content)
-      # -----END OPENSSH PRIVATE KEY-----
-      # Ensure there are NO extra spaces or newlines before or after.
-      # 
-      # The PUBLIC key must be in ~/.ssh/authorized_keys on the EC2 instance
-      # Public key should be: ssh-ed25519 N9BWtpEgcsW+yUnqtJsrmsEr9iwuEDvGNPFoWp/vWLU=
-      - name: Prepare SSH key
+      - name: Install AWS SAM CLI
         run: |
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          
-          # Write the key directly - echo with -e to preserve newlines
-          echo -e "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_ed25519
-          # Ensure proper line endings and remove trailing blank lines
-          sed -i '/^$/d' ~/.ssh/id_ed25519 || true
-          # Ensure file ends with newline after END marker (SSH requirement)
-          if ! tail -c 1 ~/.ssh/id_ed25519 | grep -q .; then
-            echo "" >> ~/.ssh/id_ed25519
-          fi
-          chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts
-          
-          # Verify key file exists and has content
-          if [ ! -f ~/.ssh/id_ed25519 ] || [ ! -s ~/.ssh/id_ed25519 ]; then
-            echo "ERROR: SSH key file is missing or empty!"
-            exit 1
-          fi
-          
-          echo "Key file size: $(wc -c < ~/.ssh/id_ed25519) bytes"
-          echo "First line: $(head -1 ~/.ssh/id_ed25519)"
-          echo "Last line: $(tail -1 ~/.ssh/id_ed25519)"
-          
-          # Validate it's a PRIVATE key, not a public key
-          echo "Verifying SSH key format..."
-          if grep -q "^ssh-ed25519 " ~/.ssh/id_ed25519 || grep -q "^ssh-rsa " ~/.ssh/id_ed25519; then
-            echo "ERROR: EC2_SSH_KEY contains a PUBLIC key, but it needs the PRIVATE key!"
-            echo "The secret should start with '-----BEGIN OPENSSH PRIVATE KEY-----'"
-            echo "Not 'ssh-ed25519' or 'ssh-rsa'"
-            exit 1
-          fi
-          
-          # Verify private key format
-          if ! head -1 ~/.ssh/id_ed25519 | grep -q "BEGIN.*PRIVATE KEY"; then
-            echo "ERROR: Key missing BEGIN PRIVATE KEY marker"
-            echo "First line: $(head -1 ~/.ssh/id_ed25519)"
-            exit 1
-          fi
-          if ! tail -1 ~/.ssh/id_ed25519 | grep -q "END.*PRIVATE KEY"; then
-            echo "ERROR: Key missing END PRIVATE KEY marker"
-            echo "Last line: $(tail -1 ~/.ssh/id_ed25519)"
-            exit 1
-          fi
-          echo "✅ SSH private key format verified"
-          
-          # Extract and display the public key for debugging (first 50 chars only)
-          echo "Extracting public key from private key..."
-          if ssh-keygen -y -f ~/.ssh/id_ed25519 > ~/.ssh/id_ed25519.pub 2>&1; then
-            echo "✅ Public key extracted successfully"
-            echo "Public key (first 50 chars): $(head -c 50 ~/.ssh/id_ed25519.pub)..."
-            echo "Expected on EC2: ssh-ed25519 N9BWtpEgcsW+yUnqtJsrmsEr9iwuEDvGNPFoWp/vWLU="
-          else
-            echo "❌ ERROR: Could not extract public key from private key"
-            echo "Key file content (first 200 chars):"
-            head -c 200 ~/.ssh/id_ed25519
-            echo ""
-            exit 1
-          fi
-          
-          # Verify the key file is readable
-          if [ ! -r ~/.ssh/id_ed25519 ]; then
-            echo "ERROR: SSH key file is not readable!"
-            exit 1
-          fi
-          
-          # Debug: Show connection info (without exposing secrets)
-          echo "Attempting to connect to: ${{ secrets.EC2_USER }}@${{ secrets.EC2_HOST }}"
+          pip install aws-sam-cli
 
-      - name: Create app directory on EC2
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key_path: ~/.ssh/id_ed25519
-          script: |
-            mkdir -p /home/${{ secrets.EC2_USER }}/app
+      - name: SAM Build
+        run: |
+          sam build --use-container --template template.yml
 
-      - name: Copy code to EC2
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key_path: ~/.ssh/id_ed25519
-          source: "."
-          target: "/home/${{ secrets.EC2_USER }}/app"
-
-      - name: Deploy on EC2
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key_path: ~/.ssh/id_ed25519
-          script: |
-            set -e
-            cd /home/${{ secrets.EC2_USER }}/app
-            echo "Building and starting containers..."
-            docker compose up -d --build
-            echo "Verifying container is running..."
-            docker ps | grep trustworthy-registry || (echo "Error: Container not running!" && exit 1)
-            echo "Deployment complete."
+      - name: SAM Deploy
+        run: |
+          sam deploy \
+            --stack-name model-registry \
+            --capabilities CAPABILITY_IAM \
+            --no-confirm-changeset \
+            --resolve-s3
